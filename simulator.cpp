@@ -245,9 +245,27 @@ public:
                     if (funct3 == 0) {
                         uint32_t funct12 = inst >> 20;
                         if (funct12 == 0) { // ECALL
-                            // System call - output reg[10] (a0) and exit
-                            cout << (reg[10] & 0xFF);
-                            running = false;
+                            // Handle system calls based on a7 (x17)
+                            uint32_t syscall_num = reg[17];
+                            
+                            if (syscall_num == 64) { // sys_write
+                                uint32_t fd = reg[10];      // a0: file descriptor
+                                uint32_t buf = reg[11];     // a1: buffer address
+                                uint32_t count = reg[12];   // a2: count
+                                
+                                if (fd == 1) { // stdout
+                                    for (uint32_t i = 0; i < count; i++) {
+                                        cout << (char)read_byte(buf + i);
+                                    }
+                                }
+                                reg[10] = count; // return bytes written
+                            } else if (syscall_num == 93) { // sys_exit
+                                running = false;
+                            } else if (syscall_num == 1) { // simple putchar
+                                cout << (char)(reg[10] & 0xFF);
+                            } else {
+                                // Unknown syscall, just continue
+                            }
                         } else { // EBREAK
                             running = false;
                         }
