@@ -87,6 +87,7 @@ private:
         if (addr == UART_ADDR) {
             // Memory-mapped I/O for UART output
             cout << (char)value;
+            cout.flush();
             return;
         }
         if (addr >= MEM_SIZE) return;
@@ -303,7 +304,7 @@ public:
                     pc += 4;
                     break;
                 }
-                case 0x73: { // ECALL/EBREAK
+                case 0x73: { // ECALL/EBREAK/CSR
                     uint32_t funct3 = get_funct3(inst);
                     if (funct3 == 0) {
                         uint32_t funct12 = inst >> 20;
@@ -320,17 +321,25 @@ public:
                                     for (uint32_t i = 0; i < count; i++) {
                                         cout << (char)read_byte(buf + i);
                                     }
+                                    cout.flush();
                                 }
                                 reg[10] = count; // return bytes written
                             } else if (syscall_num == 93) { // sys_exit
                                 running = false;
                             } else if (syscall_num == 1) { // simple putchar
                                 cout << (char)(reg[10] & 0xFF);
+                                cout.flush();
                             } else {
                                 // Unknown syscall, just continue
                             }
                         } else { // EBREAK
                             running = false;
+                        }
+                    } else {
+                        // CSR instructions - just ignore them for now
+                        uint32_t rd = get_rd(inst);
+                        if (rd != 0) {
+                            reg[rd] = 0;
                         }
                     }
                     pc += 4;
