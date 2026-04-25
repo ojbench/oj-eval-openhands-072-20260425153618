@@ -85,6 +85,8 @@ public:
         memset(memory, 0, sizeof(memory));
         pc = 0;
         running = true;
+        // Initialize stack pointer to top of memory
+        reg[2] = MEM_SIZE - 4;  // sp = x2
     }
     
     void load_program(const vector<uint8_t>& data) {
@@ -213,25 +215,72 @@ public:
                     uint32_t rs1 = get_rs1(inst);
                     uint32_t rs2 = get_rs2(inst);
                     
-                    switch (funct3) {
-                        case 0x0:
-                            if (funct7 == 0x00)
-                                reg[rd] = reg[rs1] + reg[rs2]; // ADD
-                            else
-                                reg[rd] = reg[rs1] - reg[rs2]; // SUB
-                            break;
-                        case 0x1: reg[rd] = reg[rs1] << (reg[rs2] & 0x1F); break; // SLL
-                        case 0x2: reg[rd] = ((int32_t)reg[rs1] < (int32_t)reg[rs2]) ? 1 : 0; break; // SLT
-                        case 0x3: reg[rd] = (reg[rs1] < reg[rs2]) ? 1 : 0; break; // SLTU
-                        case 0x4: reg[rd] = reg[rs1] ^ reg[rs2]; break; // XOR
-                        case 0x5:
-                            if (funct7 == 0x00)
-                                reg[rd] = reg[rs1] >> (reg[rs2] & 0x1F); // SRL
-                            else
-                                reg[rd] = (int32_t)reg[rs1] >> (reg[rs2] & 0x1F); // SRA
-                            break;
-                        case 0x6: reg[rd] = reg[rs1] | reg[rs2]; break; // OR
-                        case 0x7: reg[rd] = reg[rs1] & reg[rs2]; break; // AND
+                    if (funct7 == 0x01) { // RV32M extension
+                        switch (funct3) {
+                            case 0x0: // MUL
+                                reg[rd] = (int32_t)reg[rs1] * (int32_t)reg[rs2];
+                                break;
+                            case 0x1: { // MULH
+                                int64_t result = (int64_t)(int32_t)reg[rs1] * (int64_t)(int32_t)reg[rs2];
+                                reg[rd] = (uint32_t)(result >> 32);
+                                break;
+                            }
+                            case 0x2: { // MULHSU
+                                int64_t result = (int64_t)(int32_t)reg[rs1] * (uint64_t)reg[rs2];
+                                reg[rd] = (uint32_t)(result >> 32);
+                                break;
+                            }
+                            case 0x3: { // MULHU
+                                uint64_t result = (uint64_t)reg[rs1] * (uint64_t)reg[rs2];
+                                reg[rd] = (uint32_t)(result >> 32);
+                                break;
+                            }
+                            case 0x4: // DIV
+                                if (reg[rs2] == 0)
+                                    reg[rd] = 0xFFFFFFFF;
+                                else
+                                    reg[rd] = (int32_t)reg[rs1] / (int32_t)reg[rs2];
+                                break;
+                            case 0x5: // DIVU
+                                if (reg[rs2] == 0)
+                                    reg[rd] = 0xFFFFFFFF;
+                                else
+                                    reg[rd] = reg[rs1] / reg[rs2];
+                                break;
+                            case 0x6: // REM
+                                if (reg[rs2] == 0)
+                                    reg[rd] = reg[rs1];
+                                else
+                                    reg[rd] = (int32_t)reg[rs1] % (int32_t)reg[rs2];
+                                break;
+                            case 0x7: // REMU
+                                if (reg[rs2] == 0)
+                                    reg[rd] = reg[rs1];
+                                else
+                                    reg[rd] = reg[rs1] % reg[rs2];
+                                break;
+                        }
+                    } else {
+                        switch (funct3) {
+                            case 0x0:
+                                if (funct7 == 0x00)
+                                    reg[rd] = reg[rs1] + reg[rs2]; // ADD
+                                else
+                                    reg[rd] = reg[rs1] - reg[rs2]; // SUB
+                                break;
+                            case 0x1: reg[rd] = reg[rs1] << (reg[rs2] & 0x1F); break; // SLL
+                            case 0x2: reg[rd] = ((int32_t)reg[rs1] < (int32_t)reg[rs2]) ? 1 : 0; break; // SLT
+                            case 0x3: reg[rd] = (reg[rs1] < reg[rs2]) ? 1 : 0; break; // SLTU
+                            case 0x4: reg[rd] = reg[rs1] ^ reg[rs2]; break; // XOR
+                            case 0x5:
+                                if (funct7 == 0x00)
+                                    reg[rd] = reg[rs1] >> (reg[rs2] & 0x1F); // SRL
+                                else
+                                    reg[rd] = (int32_t)reg[rs1] >> (reg[rs2] & 0x1F); // SRA
+                                break;
+                            case 0x6: reg[rd] = reg[rs1] | reg[rs2]; break; // OR
+                            case 0x7: reg[rd] = reg[rs1] & reg[rs2]; break; // AND
+                        }
                     }
                     pc += 4;
                     break;
@@ -274,6 +323,7 @@ public:
                     break;
                 }
                 default:
+                    // Unknown instruction - stop execution
                     running = false;
                     break;
             }
