@@ -7,6 +7,7 @@
 using namespace std;
 
 const uint32_t MEM_SIZE = 0x20000;  // 128KB memory
+const uint32_t UART_ADDR = 0x10000000;  // UART output address
 
 class RISCVSimulator {
 private:
@@ -65,16 +66,29 @@ private:
     }
     
     void write_word(uint32_t addr, uint32_t value) {
+        if (addr == UART_ADDR) {
+            cout << (char)(value & 0xFF);
+            return;
+        }
         if (addr + 3 >= MEM_SIZE) return;
         *(uint32_t*)&memory[addr] = value;
     }
     
     void write_halfword(uint32_t addr, uint16_t value) {
+        if (addr == UART_ADDR) {
+            cout << (char)(value & 0xFF);
+            return;
+        }
         if (addr + 1 >= MEM_SIZE) return;
         *(uint16_t*)&memory[addr] = value;
     }
     
     void write_byte(uint32_t addr, uint8_t value) {
+        if (addr == UART_ADDR) {
+            // Memory-mapped I/O for UART output
+            cout << (char)value;
+            return;
+        }
         if (addr >= MEM_SIZE) return;
         memory[addr] = value;
     }
